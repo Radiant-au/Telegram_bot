@@ -1,0 +1,21 @@
+# Secrets - NEVER commit these!
+.env
+secrets/
+credential.json
+*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
