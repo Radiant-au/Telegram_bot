@@ -10,8 +10,13 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the bot code
+# Copy all Python files and handlers folder
 COPY bot.py .
+COPY config.py .
+COPY sheets.py .
+COPY utils.py .
+COPY ai.py .
+COPY handlers/ ./handlers/
 
 # Cloud Run sets PORT automatically, default to 8080
 ENV PORT=8080
