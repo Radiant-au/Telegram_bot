@@ -10,9 +10,9 @@ from .admin import (
     handle_poll_options,
     cancel
 )
-from .members import on_new_member, mention_all
+from .members import on_new_member, mention_all, get_user_info , handle_help
 from .fun import handle_group_messages
-from .ai import handle_ai_command, handle_ai_tokens, handle_ai_help
+from .ai import handle_ai_command, handle_ai_tokens
 
 __all__ = [
     'start_command',
@@ -23,8 +23,9 @@ __all__ = [
     'cancel',
     'on_new_member',
     'mention_all',
+    'get_user_info',
+    'handle_help',
     'handle_group_messages',
     'handle_ai_command',
     'handle_ai_tokens',
-    'handle_ai_help',
 ]

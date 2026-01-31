@@ -93,3 +93,113 @@ async def mention_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(f"Error in mention_all: {e}")
         await update.message.reply_text(f"❌ Error: {e}")
+
+async def get_user_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle /getinfo command - Admin only
+    Usage: /getinfo @username
+    Shows detailed user information from Google Sheets
+    """
+    user_id = update.effective_user.id
+    
+    # Check if user is admin
+    chat_member = await context.bot.get_chat_member(update.effective_chat.id, user_id)
+    if chat_member.status not in ['administrator', 'creator']:
+        await update.message.reply_text("⚠️ Only admins can use this command!")
+        return
+    
+    # Check if username provided
+    if not context.args:
+        await update.message.reply_text(
+            "💡 **Usage:**\n"
+            "`/getinfo @username`\n\n"
+            "**Example:**\n"
+            "`/getinfo @john_doe`"
+        )
+        return
+    
+    # Get username (remove @ if present)
+    username = context.args[0].lstrip('@')
+    
+    # Search for user in sheets
+    user_data = sheets_manager.find_user_data(username)
+    
+    if not user_data:
+        await update.message.reply_text(
+            f"❌ User @{username} not found in database!\n\n"
+            "Make sure:\n"
+            "• Username is spelled correctly\n"
+            "• User is registered in the Google Sheet"
+        )
+        return
+    
+    # Format user information
+    name = user_data.get('Name', 'N/A')
+    phone = user_data.get('Phone', 'N/A')
+    major = user_data.get('Major', 'N/A')
+    year = user_data.get('Year', 'N/A')
+    interests = user_data.get('What fields are u interested in?', 'Not specified')
+    
+    info_message = f"""
+
+👤 USER INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+📱 𝗧𝗲𝗹𝗲𝗴𝗿𝗮𝗺: @{username}
+👤 𝗡𝗮𝗺𝗲: {name}
+📞 𝗣𝗵𝗼𝗻𝗲: {phone}
+
+🎓 𝗔𝗰𝗮𝗱𝗲𝗺𝗶𝗰 𝗜𝗻𝗳𝗼:
+   • Major: {major}
+   • Year: {year}
+
+💻 𝗜𝗻𝘁𝗲𝗿𝗲𝘀𝘁𝗲𝗱 𝗶𝗻:
+   • {sheets_manager.format_interests(interests)}
+
+━━━━━━━━━━━━━━━━━━━━━━
+"""
+    
+    await update.message.reply_text(info_message)
+
+async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle /help command
+    Show Bot usage guide for all users
+    """
+    
+    user_id = update.effective_user.id
+    chat_member = await context.bot.get_chat_member(update.effective_chat.id, user_id)
+    is_admin = chat_member.status in ['administrator', 'creator']
+    
+    help_text = f"""
+🤖 Bot Help
+
+Commands:
+- /miki <question> - Ask the AI anything
+- /tokens - Check remaining tokens
+- /help - Show this help message
+
+Usage Examples:
+- /miki What is machine learning?
+- /miki Explain blockchain simply
+- /miki Write a haiku about technology
+- /miki Help me debug this code
+
+Admin Commands:
+- @all - Mention all users in the group
+- /getinfo @username - Get user info from Google Sheets
+
+Token System:
+{"👑 You have unlimited tokens (Admin)" if is_admin else "🎟️ You get 3 tokens per day"}
+🔄 Tokens reset at midnight
+💡 Use tokens wisely!
+
+Tips:
+- Be specific with your questions
+- You can ask about coding, tech, science, etc.
+- The AI is powered by Google Gemini
+
+Happy chatting! 🚀
+"""
+    
+    await update.message.reply_text(help_text)
