@@ -11,8 +11,10 @@ from .admin import (
     cancel
 )
 from .members import on_new_member, mention_all, get_user_info , handle_help
-from .fun import handle_group_messages
-from .ai import handle_ai_command, handle_ai_tokens
+from .ai_handler import (
+    handle_ai_command, handle_ai_tokens,
+    handle_switch_llm, handle_llm_status
+)
 
 __all__ = [
     'start_command',
@@ -25,7 +27,8 @@ __all__ = [
     'mention_all',
     'get_user_info',
     'handle_help',
-    'handle_group_messages',
     'handle_ai_command',
     'handle_ai_tokens',
+    'handle_switch_llm',
+    'handle_llm_status',
 ]

@@ -3,23 +3,29 @@ Google Sheets integration module
 Handle all Google Sheets operations
 """
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import json
 from config import GOOGLE_CREDENTIALS, SHEET_NAME
 
 class SheetsManager:
     def __init__(self):
         """Initialize Google Sheets connection"""
-        scope = [
-            "https://spreadsheets.google.com/feeds",
-            "https://www.googleapis.com/auth/drive"
-        ]
+        self.sheet = None
+        self.enabled = False
         
-        creds_dict = json.loads(GOOGLE_CREDENTIALS)
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-        self.sheet = client.open(SHEET_NAME).sheet1
-        print(f"✅ Connected to Google Sheet: {SHEET_NAME}")
+        if not GOOGLE_CREDENTIALS:
+            print("⚠️  GOOGLE_CREDENTIALS not configured. Sheets features will be disabled.")
+            return
+            
+        try:
+            scopes = [
+                "https://spreadsheets.google.com/feeds",
+                "https://www.googleapis.com/auth/drive"
+            ]
+            client = gspread.service_account_from_dict(GOOGLE_CREDENTIALS, scopes=scopes)
+            self.sheet = client.open(SHEET_NAME).sheet1
+            self.enabled = True
+            print(f"✅ Connected to Google Sheet: {SHEET_NAME}")
+        except Exception as e:
+            print(f"❌ Failed to connect to Google Sheet: {e}")
     
     def find_user_data(self, username):
         """
@@ -31,13 +37,19 @@ class SheetsManager:
         Returns:
             dict: User data if found, None otherwise
         """
-        all_records = self.sheet.get_all_records()
-        username_clean = username.lstrip('@').lower()
-        
-        for record in all_records:
-            sheet_username = str(record.get('Telegram username', '')).lstrip('@').lower()
-            if sheet_username == username_clean:
-                return record
+        if not self.sheet:
+            return None
+            
+        try:
+            all_records = self.sheet.get_all_records()
+            username_clean = username.lstrip('@').lower()
+            
+            for record in all_records:
+                sheet_username = str(record.get('Telegram username', '')).lstrip('@').lower()
+                if sheet_username == username_clean:
+                    return record
+        except Exception as e:
+            print(f"❌ Error reading user data from Google Sheet: {e}")
         return None
     
     def get_all_usernames(self):
@@ -47,15 +59,21 @@ class SheetsManager:
         Returns:
             list: List of usernames (without @)
         """
-        all_records = self.sheet.get_all_records()
-        usernames = []
-        
-        for record in all_records:
-            username = record.get('Telegram username', '').lstrip('@')
-            if username:
-                usernames.append(username)
-        
-        return usernames
+        if not self.sheet:
+            return []
+            
+        try:
+            all_records = self.sheet.get_all_records()
+            usernames = []
+            
+            for record in all_records:
+                username = record.get('Telegram username', '').lstrip('@')
+                if username:
+                    usernames.append(username)
+            return usernames
+        except Exception as e:
+            print(f"❌ Error reading usernames from Google Sheet: {e}")
+        return []
     
     def format_interests(self, interests_str):
         """

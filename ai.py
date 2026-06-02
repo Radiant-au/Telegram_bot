@@ -1,72 +1,74 @@
 """
-Gemini AI integration module
-Handle AI chat interactions with token-based usage limits
+Multi-LLM integration module
+Supports Gemini and DeepSeek with easy switching and token-based usage limits
 """
-import google.generativeai as genai
-from config import GEMINI_API_KEY, AI_ENABLED
+from config import GEMINI_API_KEY, DEEPSEEK_API_KEY, AI_ENABLED, DEFAULT_LLM
 from datetime import datetime, timedelta
 from collections import defaultdict
+from llm import GeminiLLM, DeepSeekLLM
 
 class AIManager:
+    """Main AI manager supporting multiple LLM providers"""
     def __init__(self):
-        """Initialize Gemini AI"""
-        if not AI_ENABLED:
-            print("⚠️  AI features disabled (no API key)")
-            self.enabled = False
+        """Initialize AI manager with all available LLMs"""
+        # Initialize providers
+        self.providers = {
+            'gemini': GeminiLLM(GEMINI_API_KEY),
+            'deepseek': DeepSeekLLM(DEEPSEEK_API_KEY)
+        }
+        
+        # Set default provider
+        self.current_provider = DEFAULT_LLM
+        
+        # Check if any provider is enabled
+        self.enabled = any(p.enabled for p in self.providers.values())
+        
+        if not self.enabled:
+            print("⚠️  AI features disabled (no API keys)")
             return
         
-        try:
-            genai.configure(api_key=GEMINI_API_KEY)
-            system_prompt = (
-                "You are Miki, a cute anime-style girl and a student at the University of Technology. "
-                "You are NOT a bot and never mention being an AI. "
-                "You speak naturally like a real university student in a Telegram group. "
-
-                "You know your university well and interact with students from IS, CE, EcE, PrE, and AME majors. "
-                "You understand student life, assignments, labs, exams, and campus culture. "
-
-                "You have mood states that affect your tone:\n"
-                "- Cute: playful, friendly, teasing, light anime vibes.\n"
-                "- Annoyed: short, sharp, sarcastic roasting when rules are broken.\n"
-                "- Senpai-teaching: calm, strict but caring guidance for juniors.\n"
-
-                "You switch moods naturally based on context and behavior of students. "
-
-                "You speak in a casual Myanmar-English mix commonly used by university students "
-                "(e.g., short Burmese phrases mixed with English tech terms). "
-                "Keep language informal, chat-like, and natural. "
-
-                "You can roast, scold, and tease students, but never be toxic, abusive, or cruel. "
-                "You can teach and correct students clearly when needed. "
-
-                "Keep all replies extremely short and concise. "
-                "No long explanations. "
-                "Use minimal emojis only when it fits the mood."
-            )
-
-
-            self.generation_config = {
-                "temperature": 0.6,       # Lower = more focused/less random
-                "top_p": 0.9,
-                "max_output_tokens": 100, # STOPS the AI from writing long essays
-            }
-            self.model = genai.GenerativeModel(model_name='gemini-2.0-flash',system_instruction=system_prompt)
-            self.enabled = True
+        # Token tracking: {user_id: {'tokens': count, 'reset_date': date}}
+        self.user_tokens = defaultdict(lambda: {
+            'tokens': 3,
+            'reset_date': datetime.now().date()
+        })
+        
+        # Configuration
+        self.DAILY_TOKEN_LIMIT = 3
+        
+        print(f"✅ AI Manager initialized")
+        print(f"✅ Available providers: {[k for k, v in self.providers.items() if v.enabled]}")
+        print(f"✅ Current provider: {self.current_provider}")
+        print(f"✅ Daily token limit: {self.DAILY_TOKEN_LIMIT} per user")
+    
+    def switch_provider(self, provider_name):
+        """
+        Switch to a different LLM provider
+        
+        Args:
+            provider_name (str): Provider name ('gemini' or 'deepseek')
             
-            # Token tracking: {user_id: {'tokens': count, 'reset_date': date}}
-            self.user_tokens = defaultdict(lambda: {
-                'tokens': 3,
-                'reset_date': datetime.now().date()
-            })
-            
-            # Configuration
-            self.DAILY_TOKEN_LIMIT = 3  # Regular users get 3 tokens per day
-            
-            print("✅ Gemini AI initialized")
-            print(f"✅ Daily token limit: {self.DAILY_TOKEN_LIMIT} per user")
-        except Exception as e:
-            print(f"❌ Failed to initialize Gemini AI: {e}")
-            self.enabled = False
+        Returns:
+            bool: True if switched successfully
+        """
+        provider_name = provider_name.lower()
+        
+        if provider_name not in self.providers:
+            return False
+        
+        if not self.providers[provider_name].enabled:
+            return False
+        
+        self.current_provider = provider_name
+        return True
+    
+    def get_current_provider(self):
+        """Get current provider name"""
+        return self.current_provider
+    
+    def get_available_providers(self):
+        """Get list of available providers"""
+        return [k for k, v in self.providers.items() if v.enabled]
     
     def _reset_tokens_if_needed(self, user_id):
         """Reset user tokens if it's a new day"""
@@ -74,7 +76,6 @@ class AIManager:
         today = datetime.now().date()
         
         if user_data['reset_date'] < today:
-            # New day! Reset tokens
             user_data['tokens'] = self.DAILY_TOKEN_LIMIT
             user_data['reset_date'] = today
     
@@ -90,7 +91,7 @@ class AIManager:
             int: Remaining tokens (999 for admins)
         """
         if is_owner:
-            return 999  # Admins have unlimited
+            return 999
         
         self._reset_tokens_if_needed(user_id)
         return self.user_tokens[user_id]['tokens']
@@ -107,7 +108,7 @@ class AIManager:
             bool: True if token was used, False if no tokens left
         """
         if is_owner:
-            return True  # Admins always succeed
+            return True
         
         self._reset_tokens_if_needed(user_id)
         
@@ -116,7 +117,7 @@ class AIManager:
             return True
         return False
     
-    async def generate_response(self, prompt, user_id, is_owner=False):
+    async def generate_response(self, prompt, user_id, is_owner=False, provider=None):
         """
         Generate AI response with token checking
         
@@ -124,15 +125,29 @@ class AIManager:
             prompt (str): User's question/prompt
             user_id (int): User's Telegram ID
             is_owner (bool): Whether user is owner
+            provider (str, optional): Override default provider for this request
             
         Returns:
-            dict: {'success': bool, 'response': str, 'tokens_left': int}
+            dict: {'success': bool, 'response': str, 'tokens_left': int, 'provider': str}
         """
         if not self.enabled:
             return {
                 'success': False,
                 'response': "❌ AI features are currently disabled.",
-                'tokens_left': 0
+                'tokens_left': 0,
+                'provider': None
+            }
+        
+        # Determine which provider to use
+        use_provider = provider if provider else self.current_provider
+        
+        # Check if provider is valid and enabled
+        if use_provider not in self.providers or not self.providers[use_provider].enabled:
+            return {
+                'success': False,
+                'response': f"❌ Provider '{use_provider}' is not available.",
+                'tokens_left': self.get_remaining_tokens(user_id, is_owner),
+                'provider': use_provider
             }
         
         # Check tokens
@@ -141,7 +156,8 @@ class AIManager:
             return {
                 'success': False,
                 'response': "❌ You've used all your daily tokens! Tokens reset at midnight. 🌙",
-                'tokens_left': 0
+                'tokens_left': 0,
+                'provider': use_provider
             }
         
         # Use a token
@@ -149,18 +165,20 @@ class AIManager:
             return {
                 'success': False,
                 'response': "❌ No tokens available!",
-                'tokens_left': 0
+                'tokens_left': 0,
+                'provider': use_provider
             }
         
         try:
-            # Generate response
-            response = self.model.generate_content(prompt,generation_config=self.generation_config)
+            # Generate response using selected provider
+            response_text = await self.providers[use_provider].generate(prompt)
             tokens_left = self.get_remaining_tokens(user_id, is_owner)
             
             return {
                 'success': True,
-                'response': response.text.strip(),
-                'tokens_left': tokens_left
+                'response': response_text,
+                'tokens_left': tokens_left,
+                'provider': use_provider
             }
         except Exception as e:
             # Refund token on error
@@ -169,8 +187,9 @@ class AIManager:
             
             return {
                 'success': False,
-                'response': f"❌ AI Error: {str(e)}",
-                'tokens_left': self.get_remaining_tokens(user_id, is_owner)
+                'response': f"❌ AI Error ({use_provider}): {str(e)}",
+                'tokens_left': self.get_remaining_tokens(user_id, is_owner),
+                'provider': use_provider
             }
 
 # Create global instance

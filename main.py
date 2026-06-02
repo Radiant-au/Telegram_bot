@@ -20,8 +20,10 @@ from handlers.admin import (
     handle_poll_question, handle_poll_options, cancel
 )
 from handlers.members import on_new_member, get_user_info, handle_help
-from handlers.fun import handle_group_messages
-from handlers.ai import handle_ai_command, handle_ai_tokens
+from handlers.ai_handler import (
+    handle_ai_command, handle_ai_tokens,
+    handle_switch_llm, handle_llm_status
+)
 
 def create_application():
     """Create and configure the bot application"""
@@ -49,9 +51,8 @@ def create_application():
     if AI_ENABLED:
         application.add_handler(CommandHandler('miki', handle_ai_command))
         application.add_handler(CommandHandler('tokens', handle_ai_tokens)) 
-    
-    # Must be last - catches all other messages
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_group_messages))
+        application.add_handler(CommandHandler('switchllm', handle_switch_llm))
+        application.add_handler(CommandHandler('llmstatus', handle_llm_status))
     
     return application
 
