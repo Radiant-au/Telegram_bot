@@ -1,0 +1,38 @@
+"""
+OpenRouter LLM provider implementation
+"""
+from openai import OpenAI
+from .base import BaseLLM
+from .constants import SYSTEM_PROMPT
+
+class OpenRouterLLM(BaseLLM):
+    """OpenRouter AI provider"""
+    def __init__(self, api_key):
+        super().__init__(api_key)
+        if not api_key:
+            print("⚠️  OpenRouter disabled (no API key)")
+            return
+        
+        try:
+            self.client = OpenAI(
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1"
+            )
+            self.enabled = True
+            print(f"✅ OpenRouter AI initialized")
+        except Exception as e:
+            print(f"❌ Failed to initialize OpenRouter: {e}")
+    
+    async def generate(self, prompt):
+        """Generate response using OpenRouter"""
+        response = self.client.chat.completions.create(
+            model="google/gemma-4-31b-it",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.6,
+            max_tokens=300,
+            stream=False
+        )
+        return response.choices[0].message.content.strip()

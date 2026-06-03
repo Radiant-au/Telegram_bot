@@ -2,10 +2,10 @@
 Multi-LLM integration module
 Supports Gemini and DeepSeek with easy switching and token-based usage limits
 """
-from config import GEMINI_API_KEY, DEEPSEEK_API_KEY, AI_ENABLED, DEFAULT_LLM
-from datetime import datetime, timedelta
+from config import GEMINI_API_KEY, DEEPSEEK_API_KEY, OPENROUTER_API_KEY, QWEN_API_KEY, AI_ENABLED, DEFAULT_LLM
+from datetime import datetime
 from collections import defaultdict
-from llm import GeminiLLM, DeepSeekLLM
+from llm import GeminiLLM, DeepSeekLLM, OpenRouterLLM, QwenLLM
 
 class AIManager:
     """Main AI manager supporting multiple LLM providers"""
@@ -14,7 +14,9 @@ class AIManager:
         # Initialize providers
         self.providers = {
             'gemini': GeminiLLM(GEMINI_API_KEY),
-            'deepseek': DeepSeekLLM(DEEPSEEK_API_KEY)
+            'deepseek': DeepSeekLLM(DEEPSEEK_API_KEY),
+            'openrouter': OpenRouterLLM(OPENROUTER_API_KEY),
+            'qwen': QwenLLM(QWEN_API_KEY)
         }
         
         # Set default provider
@@ -46,7 +48,7 @@ class AIManager:
         Switch to a different LLM provider
         
         Args:
-            provider_name (str): Provider name ('gemini' or 'deepseek')
+            provider_name (str): Provider name ('gemini', 'deepseek', 'openrouter' or 'qwen')
             
         Returns:
             bool: True if switched successfully

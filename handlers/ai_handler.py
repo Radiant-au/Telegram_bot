@@ -39,7 +39,13 @@ async def handle_ai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Format response with provider info
     if result['success']:
-        provider_emoji = "🔮" if result['provider'] == 'gemini' else "🧠"
+        provider_emojis = {
+            'gemini': '🔮',
+            'deepseek': '🧠',
+            'openrouter': '🌐',
+            'qwen': '🐼'
+        }
+        provider_emoji = provider_emojis.get(result['provider'], '🤖')
         response = f"{result['response']}\n\n"
         
         if not is_owner:
@@ -49,7 +55,11 @@ async def handle_ai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         response = result['response']
     
-    await update.message.reply_text(response, parse_mode='Markdown')
+    try:
+        await update.message.reply_text(response, parse_mode='Markdown')
+    except Exception as e:
+        print(f"⚠️ Telegram Markdown parsing failed: {e}. Falling back to plain text.")
+        await update.message.reply_text(response)
 
 async def handle_ai_tokens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -128,7 +138,9 @@ async def handle_llm_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     provider_emojis = {
         'gemini': '🔮',
-        'deepseek': '🧠'
+        'deepseek': '🧠',
+        'openrouter': '🌐',
+        'qwen': '🐼'
     }
     
     message = "🤖 *AI Configuration*\n\n"

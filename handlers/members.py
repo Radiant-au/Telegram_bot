@@ -189,7 +189,7 @@ Usage Examples:
 Admin Commands:
 - @all - Mention all users in the group
 - /getinfo @username - Get user info from Google Sheets
-- /switchllm <provider> - Switch AI provider (gemini/deepseek)
+- /switchllm <provider> - Switch AI provider (gemini/deepseek/openrouter/qwen)
 
 Token System:
 {"👑 You have unlimited tokens (Admin)" if is_admin else "🎟️ You get 3 tokens per day"}
@@ -199,7 +199,7 @@ Token System:
 Tips:
 - Be specific with your questions
 - You can ask about coding, tech, science, etc.
-- The AI is powered by Gemini & DeepSeek
+- The AI is powered by Gemini, DeepSeek, OpenRouter & Qwen
 
 Happy chatting! 🚀
 """

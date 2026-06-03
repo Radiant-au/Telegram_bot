@@ -19,12 +19,14 @@ BOT_OWNER_ID = int(os.getenv('BOT_OWNER_ID', 0))
 # ============================================================================
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
+QWEN_API_KEY = os.getenv('QWEN_API_KEY')
 
-# Default LLM provider ('gemini' or 'deepseek')
+# Default LLM provider ('gemini', 'deepseek', 'openrouter' or 'qwen')
 DEFAULT_LLM = os.getenv('DEFAULT_LLM', 'gemini').lower()
 
 # AI is enabled if at least one API key is present
-AI_ENABLED = bool(GEMINI_API_KEY or DEEPSEEK_API_KEY)
+AI_ENABLED = bool(GEMINI_API_KEY or DEEPSEEK_API_KEY or OPENROUTER_API_KEY or QWEN_API_KEY)
 
 # ============================================================================
 # GOOGLE SHEETS SETTINGS
@@ -72,8 +74,8 @@ def validate_config():
     if not AI_ENABLED:
         errors.append("⚠️  No AI API keys set (AI features disabled)")
     
-    if DEFAULT_LLM not in ['gemini', 'deepseek']:
-        errors.append(f"⚠️  Invalid DEFAULT_LLM: {DEFAULT_LLM} (must be 'gemini' or 'deepseek')")
+    if DEFAULT_LLM not in ['gemini', 'deepseek', 'openrouter', 'qwen']:
+        errors.append(f"⚠️  Invalid DEFAULT_LLM: {DEFAULT_LLM} (must be 'gemini', 'deepseek', 'openrouter' or 'qwen')")
     
     if not GOOGLE_CREDENTIALS:
         errors.append("⚠️  GOOGLE_CREDENTIALS not set (sheets features disabled)")
@@ -100,6 +102,10 @@ def print_config():
             print(f"✅ Gemini API Key: {'*' * 20}{GEMINI_API_KEY[-10:]}")
         if DEEPSEEK_API_KEY:
             print(f"✅ DeepSeek API Key: {'*' * 20}{DEEPSEEK_API_KEY[-10:]}")
+        if OPENROUTER_API_KEY:
+            print(f"✅ OpenRouter API Key: {'*' * 20}{OPENROUTER_API_KEY[-10:]}")
+        if QWEN_API_KEY:
+            print(f"✅ Qwen API Key: {'*' * 20}{QWEN_API_KEY[-10:]}")
     print(f"✅ Mode: {MODE}")
     if MODE == 'webhook':
         print(f"✅ Webhook URL: {WEBHOOK_URL if WEBHOOK_URL else 'Not set'}")
@@ -118,6 +124,8 @@ if __name__ == "__main__":
     print("AI Configuration:")
     print(f"  Gemini API: {'✅ Set' if GEMINI_API_KEY else '❌ Not set'}")
     print(f"  DeepSeek API: {'✅ Set' if DEEPSEEK_API_KEY else '❌ Not set'}")
+    print(f"  OpenRouter API: {'✅ Set' if OPENROUTER_API_KEY else '❌ Not set'}")
+    print(f"  Qwen API: {'✅ Set' if QWEN_API_KEY else '❌ Not set'}")
     print(f"  Default LLM: {DEFAULT_LLM}")
     print(f"  AI Enabled: {AI_ENABLED}")
     print()
