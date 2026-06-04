@@ -24,6 +24,7 @@ from handlers.ai_handler import (
     handle_ai_command, handle_ai_tokens,
     handle_switch_llm, handle_llm_status
 )
+from handlers.quiz_handler import register_quiz_handlers
 
 def create_application():
     """Create and configure the bot application"""
@@ -54,6 +55,10 @@ def create_application():
         application.add_handler(CommandHandler('switchllm', handle_switch_llm))
         application.add_handler(CommandHandler('llmstatus', handle_llm_status))
     
+    # Quiz handler (always available if AI is enabled)
+    if AI_ENABLED:
+        register_quiz_handlers(application)
+    
     return application
 
 def main():
@@ -74,9 +79,10 @@ def main():
     print("   • Announcements & Polls")
     print("   • Fun greetings & reactions")
     if AI_ENABLED:
-        print("   • AI Chat (Gemini) - /ai command")
+        print("   • AI Chat (Gemini) - /miki command")
         print("   • Token system: 3 tokens/day per user")
         print("   • Admins: Unlimited tokens")
+        print("   • Quiz Generator - /quiz command (1/day for members)")
     print("\n" + "="*50 + "\n")
     
     # Run in selected mode
