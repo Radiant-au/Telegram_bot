@@ -33,6 +33,10 @@ ENV/
 *.swp
 *.swo
 
+#secrets
+secrets/
+.env
+
 # Logs
 *.log
 

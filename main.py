@@ -2,10 +2,46 @@
 Main bot entry point
 Initialize and run the Telegram bot
 """
+import logging
+import os
 from telegram.ext import (
     Application, ChatMemberHandler, MessageHandler,
     filters, CommandHandler, ConversationHandler
 )
+
+# ─────────────────────────────────────────────
+# Logging Setup
+# ─────────────────────────────────────────────
+
+def setup_logging():
+    """Configure root logger for the whole application."""
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_file  = os.getenv("LOG_FILE", "")   # e.g. "bot.log" — empty = console only
+    numeric_level = getattr(logging, log_level, logging.INFO)
+
+    fmt = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+    datefmt = "%Y-%m-%d %H:%M:%S"
+
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if log_file:
+        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+
+    logging.basicConfig(
+        level=numeric_level,
+        format=fmt,
+        datefmt=datefmt,
+        handlers=handlers,
+        force=True,
+    )
+
+    if numeric_level > logging.DEBUG:
+        # Silence overly verbose third-party loggers during normal runs.
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("telegram").setLevel(logging.WARNING)
+        logging.getLogger("openai").setLevel(logging.WARNING)
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 # Import configuration
 from config import (
@@ -69,37 +105,18 @@ def main():
     # Create application
     application = create_application()
     
-    print("="*50)
-    print("🤖 BOT IS RUNNING!")
-    print("="*50)
-    print("\n✅ Features loaded:")
-    print("   • New member announcements")
-    print("   • @all mentions with separate notification")
-    print("   • Admin panel (/start) - Owner only")
-    print("   • Announcements & Polls")
-    print("   • Fun greetings & reactions")
+    logger.info("🤖 BOT IS RUNNING!")
+    logger.info("Features loaded: new-member announcements, admin panel, announcements & polls, fun greetings")
     if AI_ENABLED:
-        print("   • AI Chat (Gemini) - /miki command")
-        print("   • Token system: 3 tokens/day per user")
-        print("   • Admins: Unlimited tokens")
-        print("   • Quiz Generator - /quiz command (1/day for members)")
-    print("\n" + "="*50 + "\n")
+        logger.info("AI features loaded: /miki, /tokens, /switchllm, /quiz")
     
     # Run in selected mode
     if MODE == 'webhook':
-        print(f"🌐 Starting in WEBHOOK mode...")
-        print(f"   Listening on: 0.0.0.0:{PORT}")
-        
+        logger.info("Starting in WEBHOOK mode on 0.0.0.0:%s", PORT)
         if WEBHOOK_URL:
-            print(f"   Webhook URL: {WEBHOOK_URL}/telegram")
-            print("   Webhook will be set automatically")
+            logger.info("Webhook URL: %s/telegram (will be set automatically)", WEBHOOK_URL)
         else:
-            print("⚠️  WEBHOOK_URL not set!")
-            print("   Bot will listen for requests but webhook needs to be set manually")
-            print("   After deployment, run:")
-            print("   curl 'https://api.telegram.org/bot<TOKEN>/setWebhook?url=<YOUR_URL>/telegram'")
-        
-        print("\n" + "="*50 + "\n")
+            logger.warning("WEBHOOK_URL not set — set it manually via setWebhook API call")
         
         # Start webhook server
         application.run_webhook(
@@ -110,11 +127,7 @@ def main():
             drop_pending_updates=True
         )
     else:
-        print(f"📡 Starting in POLLING mode (for local testing)...")
-        print("   Bot will continuously check for updates")
-        print("\n" + "="*50)
-        print("Waiting for messages...\n")
-        
+        logger.info("Starting in POLLING mode — waiting for messages...")
         application.run_polling(allowed_updates=["chat_member", "message"])
 
 if __name__ == '__main__':

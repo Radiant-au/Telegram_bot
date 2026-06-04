@@ -1,23 +1,26 @@
 # 🤖 Technologia Club Telegram Bot
 
-A feature-rich Telegram bot for managing university club groups with AI chat capabilities, member management, and administrative tools.
+A Telegram bot for managing university club groups with AI chat, member lookup, Google Sheets integration, quizzes, announcements, and owner-only admin tools.
 
 ## ✨ Features
 
 ### 🎯 Core Features
-- **AI Chat Integration** - Powered by Google Gemini AI with token-based usage limits
+- **AI Chat Integration** - Multi-provider LLM support with token-based usage limits
 - **New Member Announcements** - Automatic welcome messages with user data from Google Sheets
 - **Admin Panel** - Owner-only command interface for announcements and polls
 - **@all Mentions** - Notify all members with admin-only access
-- **Fun Interactions** - Greeting responses and blame game features
 - **Google Sheets Integration** - Store and retrieve member information
+- **Quiz Generator** - AI-assisted quiz generation in a dedicated topic
 
 ### 🤖 AI Features
 - `/miki <question>` - Ask the AI anything
+- `/tokens` - Check remaining daily AI tokens
+- `/switchllm` - Switch between configured LLM providers
+- `/llmstatus` - Show active and available LLM providers
 - Token system: 3 tokens per day for regular users
 - Unlimited tokens for admins
 - Daily token reset at midnight
-- Powered by Google Gemini 2.0 Flash
+- Supported providers: Gemini, DeepSeek, OpenRouter, and Qwen
 
 ### 👥 Member Management
 - Automatic member announcements in dedicated topic
@@ -34,10 +37,10 @@ A feature-rich Telegram bot for managing university club groups with AI chat cap
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.12+
 - Telegram Bot Token (from [@BotFather](https://t.me/botfather))
 - Google Sheets API credentials
-- Gemini API key (optional, for AI features)
+- At least one AI API key if AI features should be enabled
 
 ### Installation
 
@@ -49,7 +52,13 @@ cd telegram-bot
 
 2. **Install dependencies**
 ```bash
-pip install -r requirements.txt
+uv sync
+```
+
+If you are not using `uv`, install the requirements directly:
+
+```bash
+python -m pip install -r requirements.txt
 ```
 
 3. **Set up environment variables**
@@ -62,19 +71,29 @@ Edit `.env` with your credentials:
 # Required
 TELEGRAM_TOKEN=your_telegram_bot_token
 BOT_OWNER_ID=your_telegram_user_id
-GOOGLE_CREDENTIALS={"type": "service_account", ...}
 SHEET_NAME=your_google_sheet_name
+
+# Recommended for local/debug runs
+GOOGLE_CREDENTIALS_FILE=secrets/credential.json
+
+# Alternative for deployment platforms
+GOOGLE_CREDENTIALS={"type":"service_account","project_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"..."}
 
 # Optional (AI features)
 GEMINI_API_KEY=your_gemini_api_key
+DEEPSEEK_API_KEY=your_deepseek_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
+QWEN_API_KEY=your_qwen_api_key
+DEFAULT_LLM=gemini
 
 # Group settings
 GROUP_CHAT_ID=your_group_chat_id
 ANNOUNCEMENT_TOPIC_ID=2
+QUIZ_TOPIC_ID=2
 MEMBER_TOPIC_ID=2
 
 # Deployment
-MODE=webhook  # or 'polling' for local
+MODE=polling
 WEBHOOK_URL=https://your-domain.com
 PORT=8080
 ```
@@ -83,12 +102,12 @@ PORT=8080
 
 For local development (polling mode):
 ```bash
-MODE=polling python bot.py
+uv run python main.py
 ```
 
 For production (webhook mode):
 ```bash
-python bot.py
+MODE=webhook python main.py
 ```
 
 ## 📋 Configuration Guide
@@ -108,8 +127,11 @@ python bot.py
 3. Enable Google Sheets API
 4. Create service account credentials
 5. Download JSON key file
-6. Copy entire JSON content to `GOOGLE_CREDENTIALS` in `.env`
-7. Share your Google Sheet with the service account email
+6. Put the JSON file at `secrets/credential.json`
+7. Set `GOOGLE_CREDENTIALS_FILE=secrets/credential.json` in `.env`
+8. Share your Google Sheet with the service account email
+
+For deployment platforms that cannot use local files, set `GOOGLE_CREDENTIALS` to the full service account JSON instead. Keep the private key newlines escaped as `\n`.
 
 **Required Sheet Columns:**
 - Name
@@ -119,10 +141,18 @@ python bot.py
 - Year
 - What fields are u interested in?
 
-### Gemini API Key (Optional)
-1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Create API key
-3. Add to `.env` as `GEMINI_API_KEY`
+### AI API Keys (Optional)
+Add one or more provider keys to `.env`:
+
+```env
+GEMINI_API_KEY=
+DEEPSEEK_API_KEY=
+OPENROUTER_API_KEY=
+QWEN_API_KEY=
+DEFAULT_LLM=gemini
+```
+
+AI commands are enabled only when at least one provider key is configured.
 
 ## 🎮 Usage
 
@@ -130,6 +160,9 @@ python bot.py
 ```
 /miki <question>     - Ask AI anything
 /tokens              - Check remaining AI tokens
+/switchllm           - Switch LLM provider
+/llmstatus           - Show LLM provider status
+/quiz                - Generate a quiz
 /help                - Show help message
 ```
 
@@ -152,18 +185,22 @@ python bot.py
 
 ```
 telegram-bot/
-├── bot.py                 # Main bot entry point
+├── main.py                # Main bot entry point
 ├── config.py              # Configuration management
-├── ai.py                  # AI/Gemini integration
+├── ai.py                  # AI manager and token tracking
 ├── sheets.py              # Google Sheets integration
 ├── utils.py               # Utility functions
+├── llm/                   # LLM provider implementations
 ├── requirements.txt       # Python dependencies
+├── pyproject.toml         # uv/Python project metadata
 ├── handlers/
 │   ├── __init__.py
 │   ├── admin.py          # Admin panel handlers
-│   ├── ai.py             # AI command handlers
-│   ├── fun.py            # Fun interaction handlers
+│   ├── ai_handler.py     # AI command handlers
+│   ├── quiz_handler.py   # Quiz command handlers
 │   └── members.py        # Member management handlers
+├── secrets/
+│   └── credential.json   # Local Google service account file, ignored by git
 └── .env                   # Environment variables (create this)
 ```
 
@@ -196,8 +233,18 @@ git push heroku main
 
 ```bash
 # Use polling mode for testing
-MODE=polling python bot.py
+MODE=polling python main.py
 ```
+
+### VS Code / Antigravity Debugging
+
+Use one of the launch configurations in `.vscode/launch.json`:
+
+- `🤖 Run Bot (INFO)`
+- `🐛 Debug Bot (DEBUG)`
+- `📝 Debug Bot → bot.log`
+
+The workspace is configured to use `.venv/bin/python`. If the debug console shows `/home/radiant/.pyenv/.../python`, re-select the interpreter or restart the IDE so it picks up `.vscode/settings.json`.
 
 ## 🔧 Troubleshooting
 
@@ -210,9 +257,16 @@ MODE=polling python bot.py
 - Verify service account email has access to sheet
 - Check sheet name matches exactly
 - Ensure all required columns exist
+- Prefer `GOOGLE_CREDENTIALS_FILE=secrets/credential.json` for local/debug runs
+- If using `GOOGLE_CREDENTIALS`, keep private key newlines escaped as `\n`
+
+### Debugger crashes before startup
+- Confirm the debugger uses `.venv/bin/python`
+- Confirm `.env` exists in the project root
+- Use `GOOGLE_CREDENTIALS_FILE` if the debugger has trouble parsing JSON credentials from `.env`
 
 ### AI not working
-- Check if `GEMINI_API_KEY` is set
+- Check if at least one AI API key is set
 - Verify API key is valid
 - Check if AI_ENABLED prints `True` on startup
 
@@ -263,7 +317,7 @@ For issues or questions:
 
 - [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot)
 - [Google Sheets API](https://developers.google.com/sheets/api)
-- [Google Gemini AI](https://ai.google.dev/)
+- Gemini, DeepSeek, OpenRouter, and Qwen LLM providers
 
 ---
 

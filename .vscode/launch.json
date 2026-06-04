@@ -1,0 +1,54 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // ─── Normal run (INFO level) ───────────────────────────────────
+            "name": "🤖 Run Bot (INFO)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "pythonPath": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LOG_LEVEL": "INFO"
+            },
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            // ─── Debug run (DEBUG level — verbose) ────────────────────────
+            "name": "🐛 Debug Bot (DEBUG)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "pythonPath": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LOG_LEVEL": "DEBUG"
+            },
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": false // show frames inside 3rd-party libs too
+        },
+        {
+            // ─── Debug with log file ───────────────────────────────────────
+            "name": "📝 Debug Bot → bot.log",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "pythonPath": "${workspaceFolder}/.venv/bin/python",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LOG_LEVEL": "DEBUG",
+                "LOG_FILE": "bot.log"
+            },
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": false
+        }
+    ]
+}

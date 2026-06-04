@@ -2,3 +2,4 @@ python-telegram-bot==22.7
 python-dotenv==1.2.2
 gspread==6.2.1
 google-generativeai==0.8.6
+debugpy>=1.8.0

@@ -2,15 +2,18 @@
 Configuration management for Telegram Bot
 Load environment variables and bot settings
 """
+import json
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 
 # ============================================================================
 # TELEGRAM SETTINGS
-# ============================================================================
+# ===================================================W=========================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 BOT_OWNER_ID = int(os.getenv('BOT_OWNER_ID', 0))
 
@@ -31,9 +34,35 @@ AI_ENABLED = bool(GEMINI_API_KEY or DEEPSEEK_API_KEY or OPENROUTER_API_KEY or QW
 # ============================================================================
 # GOOGLE SHEETS SETTINGS
 # ============================================================================
-import json
+def _normalize_google_credentials(credentials):
+    """Normalize service-account fields loaded from env vars or JSON files."""
+    if isinstance(credentials, dict) and isinstance(credentials.get("private_key"), str):
+        credentials["private_key"] = credentials["private_key"].replace("\\n", "\n")
+    return credentials
+
+
+def _load_google_credentials():
+    """Load Google credentials from JSON env content or an optional file path."""
+    credentials_json = os.getenv('GOOGLE_CREDENTIALS')
+    if credentials_json:
+        try:
+            return _normalize_google_credentials(json.loads(credentials_json))
+        except json.JSONDecodeError:
+            return _normalize_google_credentials(json.loads(credentials_json, strict=False))
+
+    credentials_file = os.getenv('GOOGLE_CREDENTIALS_FILE')
+    if credentials_file:
+        credentials_path = Path(credentials_file).expanduser()
+        if not credentials_path.is_absolute():
+            credentials_path = BASE_DIR / credentials_path
+        with credentials_path.open(encoding="utf-8") as file:
+            return _normalize_google_credentials(json.load(file))
+
+    return None
+
+
 GOOGLE_CREDENTIALS_JSON = os.getenv('GOOGLE_CREDENTIALS')
-GOOGLE_CREDENTIALS = json.loads(GOOGLE_CREDENTIALS_JSON) if GOOGLE_CREDENTIALS_JSON else None
+GOOGLE_CREDENTIALS = _load_google_credentials()
 SHEET_NAME = os.getenv('SHEET_NAME')
 
 # ============================================================================
@@ -41,6 +70,7 @@ SHEET_NAME = os.getenv('SHEET_NAME')
 # ============================================================================
 GROUP_CHAT_ID = int(os.getenv('GROUP_CHAT_ID', 0))
 ANNOUNCEMENT_TOPIC_ID = int(os.getenv('ANNOUNCEMENT_TOPIC_ID', 2))
+QUIZ_TOPIC_ID = int(os.getenv('QUIZ_TOPIC_ID', 2))
 MEMBER_TOPIC_ID = int(os.getenv('MEMBER_TOPIC_ID', 2))
 
 # ============================================================================
@@ -95,6 +125,7 @@ def print_config():
     print(f"✅ Bot Owner ID: {BOT_OWNER_ID}")
     print(f"✅ Group Chat ID: {GROUP_CHAT_ID if GROUP_CHAT_ID else 'Not set'}")
     print(f"✅ Announcement Topic: {ANNOUNCEMENT_TOPIC_ID}")
+    print(f"✅ Quiz Topic: {QUIZ_TOPIC_ID}")
     print(f"✅ MEMBER Topic: {MEMBER_TOPIC_ID}")
     print(f"✅ AI Enabled: {AI_ENABLED}")
     if AI_ENABLED:
