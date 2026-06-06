@@ -1,16 +1,19 @@
 """
 DeepSeek LLM provider implementation
 """
+import logging
 from openai import OpenAI
 from .base import BaseLLM
 from .constants import SYSTEM_PROMPT
+
+logger = logging.getLogger(__name__)
 
 class DeepSeekLLM(BaseLLM):
     """DeepSeek AI provider"""
     def __init__(self, api_key):
         super().__init__(api_key)
         if not api_key:
-            print("⚠️  DeepSeek disabled (no API key)")
+            logger.warning("DeepSeek disabled (no API key)")
             return
         
         try:
@@ -19,9 +22,9 @@ class DeepSeekLLM(BaseLLM):
                 base_url="https://api.deepseek.com"
             )
             self.enabled = True
-            print("✅ DeepSeek AI initialized")
+            logger.info("DeepSeek AI initialized")
         except Exception as e:
-            print(f"❌ Failed to initialize DeepSeek: {e}")
+            logger.error("Failed to initialize DeepSeek: %s", e, exc_info=True)
     
     async def generate(self, prompt):
         """Generate response using DeepSeek"""

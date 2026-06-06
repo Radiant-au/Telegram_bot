@@ -1,16 +1,19 @@
 """
 OpenRouter LLM provider implementation
 """
+import logging
 from openai import OpenAI
 from .base import BaseLLM
 from .constants import SYSTEM_PROMPT
+
+logger = logging.getLogger(__name__)
 
 class OpenRouterLLM(BaseLLM):
     """OpenRouter AI provider"""
     def __init__(self, api_key):
         super().__init__(api_key)
         if not api_key:
-            print("⚠️  OpenRouter disabled (no API key)")
+            logger.warning("OpenRouter disabled (no API key)")
             return
         
         try:
@@ -19,9 +22,9 @@ class OpenRouterLLM(BaseLLM):
                 base_url="https://openrouter.ai/api/v1"
             )
             self.enabled = True
-            print(f"✅ OpenRouter AI initialized")
+            logger.info("OpenRouter AI initialized")
         except Exception as e:
-            print(f"❌ Failed to initialize OpenRouter: {e}")
+            logger.error("Failed to initialize OpenRouter: %s", e, exc_info=True)
     
     async def generate(self, prompt):
         """Generate response using OpenRouter"""

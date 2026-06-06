@@ -4,13 +4,16 @@ Sends AI-generated multiple choice questions as Telegram quiz polls
 """
 import asyncio
 import json
+import logging
 import re
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 from ai import ai_manager
-from config import BOT_OWNER_ID, ANNOUNCEMENT_TOPIC_ID
+from config import BOT_OWNER_ID, GROUP_CHAT_ID, QUIZ_TOPIC_ID
 
 # ─────────────────────────────────────────────
 # Rate limiting for members
@@ -54,8 +57,27 @@ async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
             user_id=update.effective_user.id
         )
         return member.status in ['creator', 'administrator']
-    except Exception:
+    except Exception as e:
+        logger.warning("is_admin check failed: %s", e)
         return False
+
+
+def clean_user_topic(raw_args: list) -> str:
+    """Cleans up messy user input like 'about the react make it for' -> 'React'"""
+    raw_text = " ".join(raw_args)
+    
+    # Remove common conversational filler words users type
+    filler_words = r'\b(about|the|a|an|make|it|for|to|generate|create|give|me|please|quiz|question)\b'
+    clean_text = re.sub(filler_words, '', raw_text, flags=re.IGNORECASE)
+    
+    # Remove basic sentence punctuation (but keep +, #, . for things like C++ or Node.js)
+    clean_text = re.sub(r'[,!?;:]', '', clean_text)
+    
+    # Clean up extra spaces
+    clean_text = ' '.join(clean_text.split()).strip()
+    
+    # Title case it so the AI gets a clean topic
+    return clean_text.title() if clean_text else ""
 
 
 def parse_quiz_json(raw: str) -> list:
@@ -75,13 +97,12 @@ def parse_quiz_json(raw: str) -> list:
     return json.loads(clean[start:end + 1])
 
 
-def build_quiz_prompt(topic: str, count: int, difficulty: str = "intermediate") -> str:
-    return f"""You are a quiz creator for a university tech club called Technologia Club.
+def build_quiz_prompt(topic: str) -> str:
+    return f"""You are an expert quiz creator for a university tech club called Technologia Club.
 
-Generate exactly {count} multiple choice quiz questions about: "{topic}"
-Difficulty: {difficulty}
+Generate EXACTLY ONE multiple-choice question about: "{topic}"
 
-STRICT FORMAT — Respond ONLY with a valid JSON array. No markdown, no extra text.
+STRICT FORMAT — Respond ONLY with a valid JSON array containing exactly ONE object. No markdown, no extra text.
 
 [
   {{
@@ -98,10 +119,11 @@ STRICT FORMAT — Respond ONLY with a valid JSON array. No markdown, no extra te
 ]
 
 Rules:
+- Generate EXACTLY 1 question. No more, no less.
 - Exactly 4 options per question: A, B, C, D
 - "answer" = one letter only: A, B, C, or D
+- Options MUST be short (maximum 80 characters each). Keep them concise!
 - Questions must be clear, unambiguous, and educational
-- Vary which letter is correct across questions
 - Return ONLY the JSON array, nothing else"""
 
 
@@ -117,18 +139,23 @@ async def send_quiz_polls(
     delay: float = 2.0
 ):
     """Send each quiz question as a Telegram quiz poll"""
-    total = len(questions)
-
     for i, q in enumerate(questions):
         try:
-            # Build options list: ["A. text", "B. text", ...]
-            options = [f"{k}. {v}" for k, v in q["options"].items()]
+                        # Build options list: ["A. text", "B. text", ...]
+            # Telegram limit is 100 chars per option. We truncate to 97 + "..." to be safe.
+            options = []
+            for k, v in q["options"].items():
+                opt_text = f"{k}. {v}"
+                if len(opt_text) > 100:
+                    opt_text = opt_text[:97] + "..."
+                options.append(opt_text)
 
             # Find the correct option index (0-based)
             keys = list(q["options"].keys())
             correct_idx = keys.index(q["answer"]) if q["answer"] in keys else 0
 
-            question_text = f"❓ Q{i + 1}/{total}: {q['question']}"
+            # Since it's always 1 question, no need for "Q1/1" prefix
+            question_text = f"❓ {q['question']}"
 
             # Telegram poll question limit = 300 chars
             if len(question_text) > 300:
@@ -140,7 +167,7 @@ async def send_quiz_polls(
                 options=options,
                 type="quiz",
                 correct_option_id=correct_idx,
-                is_anonymous=False,
+                is_anonymous=True,
             )
 
             if thread_id:
@@ -148,16 +175,20 @@ async def send_quiz_polls(
 
             explanation = q.get("explanation", "")
             if explanation:
-                kwargs["explanation"] = explanation[:200]  # Telegram limit
+                # Telegram explanation limit is 200 chars
+                if len(explanation) > 200:
+                    explanation = explanation[:197] + "..."
+                kwargs["explanation"] = explanation
 
             await bot.send_poll(**kwargs)
 
             # Delay between polls so it doesn't flood
-            if i < total - 1:
+            if i < len(questions) - 1:
                 await asyncio.sleep(delay)
 
         except Exception as e:
-            print(f"❌ Failed to send poll Q{i + 1}: {e}")
+            logger.error("Failed to send poll (Q%d): %s", i + 1, e, exc_info=True)
+            raise e
 
 
 # ─────────────────────────────────────────────
@@ -166,12 +197,12 @@ async def send_quiz_polls(
 
 async def handle_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    /quiz <topic> [count] [difficulty]
+    /quiz <topic>
 
     Examples:
-        /quiz AI Development
-        /quiz Machine Learning 5
-        /quiz Python advanced 3
+        /quiz React Programming
+        /quiz Machine Learning advanced
+        /quiz about python, make it intermediate
     
     Limits:
         - Admins: Unlimited
@@ -179,6 +210,7 @@ async def handle_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     user = update.effective_user
     admin = user.id == BOT_OWNER_ID or await is_admin(update, context)
+    logger.info("/quiz called by user_id=%s username=%s admin=%s", user.id, user.username, admin)
 
     # Check rate limit for non-admins
     if not admin:
@@ -190,45 +222,34 @@ async def handle_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text(
             "📋 *Quiz Generator*\n\n"
-            "Usage: `/quiz <topic> [count] [difficulty]`\n\n"
+            "Usage: `/quiz <topic>`\n\n"
             "Examples:\n"
-            "`/quiz AI Development`\n"
-            "`/quiz Machine Learning 5`\n"
-            "`/quiz Python advanced 3`\n\n"
-            "Difficulty: `beginner` | `intermediate` | `advanced` | `mixed`\n\n"
+            "`/quiz React Programming`\n"
+            "`/quiz Machine Learning advanced`\n\n"
             "_Limits: 1 quiz per 24h for members, unlimited for admins_",
             parse_mode='Markdown'
         )
         return
 
-    # Parse args: topic [count] [difficulty]
+    # Parse args: topic [difficulty]
     args = context.args
-    difficulty = "intermediate"
-    count = 4
 
-    # Check last arg for difficulty keyword
-    diff_keywords = {"beginner", "intermediate", "advanced", "mixed"}
-    if args[-1].lower() in diff_keywords:
-        difficulty = args[-1].lower()
-        args = args[:-1]
+    # Clean the topic (removes "about the", "make it for", etc.)
+    topic = clean_user_topic(args)
+    if not topic:
+        topic = "Technology"
 
-    # Check last remaining arg for count (number)
-    if args and args[-1].isdigit():
-        count = max(1, min(10, int(args[-1])))  # Reduced max to 10 to save tokens
-        args = args[:-1]
+    logger.debug("quiz topic=%r difficulty=%r", topic)
 
-    topic = " ".join(args) if args else "AI Development"
-
-    # Status message
-    provider_emoji = "🔮" if ai_manager.get_current_provider() == "gemini" else "🧠"
-    status_msg = await update.message.reply_text(
-        f"{provider_emoji} Generating *{count} quiz questions* about *{topic}*...\n"
-        f"_Difficulty: {difficulty}_",
-        parse_mode='Markdown'
-    )
+    # Show typing action while generating
+    try:
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    except Exception as e:
+        logger.debug("send_chat_action failed (non-critical): %s", e)
 
     try:
-        prompt = build_quiz_prompt(topic, count, difficulty)
+        # Note: Removed 'count' argument here to match the function definition
+        prompt = build_quiz_prompt(topic)
 
         # Call AI - use Qwen for quizzes (cheapest), charge tokens for non-admins
         result = await ai_manager.generate_response(
@@ -239,7 +260,8 @@ async def handle_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         if not result["success"]:
-            await status_msg.edit_text(f"❌ AI error: {result['response']}")
+            logger.warning("AI generation failed for topic=%r: %s", topic, result['response'])
+            await update.message.reply_text(f"\u274c AI error: {result['response']}")
             return
 
         # Record usage for rate limiting (only for non-admins)
@@ -249,67 +271,67 @@ async def handle_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Parse quiz
         try:
             questions = parse_quiz_json(result["response"])
+            logger.debug("Parsed %d question(s) from AI response", len(questions))
+            # Force exactly 1 question just in case the AI hallucinates more
+            if len(questions) > 1:
+                logger.warning("AI returned %d questions, trimming to 1", len(questions))
+                questions = [questions[0]]
         except Exception as e:
-            await status_msg.edit_text(
-                f"❌ Failed to parse quiz from AI response.\n"
+            logger.error("JSON parse error for topic=%r: %s\nRaw response:\n%s",
+                         topic, e, result.get("response", ""), exc_info=True)
+            await update.message.reply_text(
+                f"\u274c Failed to parse quiz from AI response.\n"
                 f"Error: {str(e)}\n\n"
                 f"Try again or rephrase your topic."
             )
             return
 
         if not questions:
-            await status_msg.edit_text("❌ AI returned empty quiz. Please try again.")
+            await update.message.reply_text("❌ AI returned empty quiz. Please try again.")
             return
 
-        # Update status
-        await status_msg.edit_text(
-            f"✅ Generated *{len(questions)} questions*! Sending polls...",
-            parse_mode='Markdown'
-        )
+        # Send polls to configured quiz channel/topic
+        chat_id = GROUP_CHAT_ID if GROUP_CHAT_ID else update.effective_chat.id
+        thread_id = QUIZ_TOPIC_ID if GROUP_CHAT_ID else None
+        logger.info("Sending quiz poll → chat_id=%s thread_id=%s topic=%r",
+                    chat_id, thread_id, topic)
 
-        # Send intro message
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            message_thread_id=ANNOUNCEMENT_TOPIC_ID,
-            text=(
-                f"📚 *Quiz Time!*\n\n"
-                f"Topic: *{topic}*\n"
-                f"Questions: *{len(questions)}*\n"
-                f"Difficulty: *{difficulty.title()}*\n\n"
-                f"Answer each poll before the explanation shows! 🎯"
-            ),
-            parse_mode='Markdown'
-        )
-
-        await asyncio.sleep(1)
-
-        # Send polls to announcement topic
         await send_quiz_polls(
             bot=context.bot,
-            chat_id=update.effective_chat.id,
+            chat_id=chat_id,
             questions=questions,
-            thread_id=ANNOUNCEMENT_TOPIC_ID,
+            thread_id=thread_id,
             delay=2.0
         )
 
-        # Final message
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            message_thread_id=ANNOUNCEMENT_TOPIC_ID,
-            text=(
-                f"🏁 *Quiz Complete!*\n\n"
-                f"That's all {len(questions)} questions for today's *{topic}* quiz.\n"
-                f"Good luck! 🤓"
-            ),
-            parse_mode='Markdown'
-        )
+        # Send status/success message to the user who requested the quiz
+        provider_emojis = {
+            'gemini': '🔮',
+            'deepseek': '🧠',
+            'openrouter': '🌐',
+            'qwen': '🐼'
+        }
+        prov = result.get("provider", "qwen")
+        provider_emoji = provider_emojis.get(prov, "🤖")
+        provider_name = prov.title()
+        tokens_left = result.get("tokens_left", 0)
 
-        # Delete the generating status
-        await status_msg.delete()
+        status_text = (
+            f"✅ *Quiz on {topic} sent successfully to the channel!*\n\n"
+            f"{provider_emoji} *Provider:* {provider_name}\n"
+        )
+        if admin:
+            status_text += f"🎫 *Admin:* ∞ tokens"
+        else:
+            status_text += f"🎫 *Tokens Left:* {tokens_left}/3"
+
+        logger.info("Quiz sent successfully: topic=%r provider=%s tokens_left=%s",
+                    topic, prov, tokens_left)
+        await update.message.reply_text(status_text, parse_mode='Markdown')
 
     except Exception as e:
-        await status_msg.edit_text(f"❌ Unexpected error: {str(e)}")
-        print(f"Quiz error: {e}")
+        logger.exception("Unhandled exception in handle_quiz for user_id=%s topic=%r", user.id, topic)
+        await update.message.reply_text(f"\u274c Unexpected error: {str(e)}")
 
 
 # ─────────────────────────────────────────────

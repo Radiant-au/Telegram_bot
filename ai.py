@@ -2,10 +2,13 @@
 Multi-LLM integration module
 Supports Gemini and DeepSeek with easy switching and token-based usage limits
 """
+import logging
 from config import GEMINI_API_KEY, DEEPSEEK_API_KEY, OPENROUTER_API_KEY, QWEN_API_KEY, AI_ENABLED, DEFAULT_LLM
 from datetime import datetime
 from collections import defaultdict
 from llm import GeminiLLM, DeepSeekLLM, OpenRouterLLM, QwenLLM
+
+logger = logging.getLogger(__name__)
 
 class AIManager:
     """Main AI manager supporting multiple LLM providers"""
@@ -26,7 +29,7 @@ class AIManager:
         self.enabled = any(p.enabled for p in self.providers.values())
         
         if not self.enabled:
-            print("⚠️  AI features disabled (no API keys)")
+            logger.warning("AI features disabled (no API keys)")
             return
         
         # Token tracking: {user_id: {'tokens': count, 'reset_date': date}}
@@ -38,10 +41,10 @@ class AIManager:
         # Configuration
         self.DAILY_TOKEN_LIMIT = 3
         
-        print(f"✅ AI Manager initialized")
-        print(f"✅ Available providers: {[k for k, v in self.providers.items() if v.enabled]}")
-        print(f"✅ Current provider: {self.current_provider}")
-        print(f"✅ Daily token limit: {self.DAILY_TOKEN_LIMIT} per user")
+        logger.info("AI Manager initialized")
+        logger.info("Available providers: %s", [k for k, v in self.providers.items() if v.enabled])
+        logger.info("Current provider: %s", self.current_provider)
+        logger.info("Daily token limit: %d per user", self.DAILY_TOKEN_LIMIT)
     
     def switch_provider(self, provider_name):
         """
