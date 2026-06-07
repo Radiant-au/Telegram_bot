@@ -1,26 +1,23 @@
 """
 Quiz handler for Technologia Club Bot
 Sends AI-generated multiple choice questions as Telegram quiz polls
+Data is persisted in quiz_data.json
 """
+from handlers.quiz_storage import quiz_storage
 import asyncio
 import json
-import logging
+from ai import logger
 import re
-from datetime import datetime
-
-logger = logging.getLogger(__name__)
+import time
 
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 from ai import ai_manager
 from config import BOT_OWNER_ID, GROUP_CHAT_ID, QUIZ_TOPIC_ID, DAILY_TOKEN_LIMIT
-
 # ─────────────────────────────────────────────
 # Rate limiting for members
 # ─────────────────────────────────────────────
 
-# Track last quiz time per user: {user_id: timestamp}
-_user_quiz_cooldown = {}
 QUIZ_COOLDOWN_SECONDS = 86400  # 24 hours
 
 
@@ -29,8 +26,8 @@ async def can_user_take_quiz(user_id: int) -> tuple[bool, str]:
     if user_id == BOT_OWNER_ID:
         return True, ""
     
-    now = asyncio.get_event_loop().time()
-    last_time = _user_quiz_cooldown.get(user_id, 0)
+    now = time.time()
+    last_time = await quiz_storage.get_last_quiz_time(user_id)
     
     if now - last_time < QUIZ_COOLDOWN_SECONDS:
         remaining = int(QUIZ_COOLDOWN_SECONDS - (now - last_time))
@@ -41,9 +38,10 @@ async def can_user_take_quiz(user_id: int) -> tuple[bool, str]:
     return True, ""
 
 
-def record_quiz_usage(user_id: int):
+async def record_quiz_usage(user_id: int):
     """Record that user generated a quiz"""
-    _user_quiz_cooldown[user_id] = asyncio.get_event_loop().time()
+    now = time.time()
+    await quiz_storage.set_last_quiz_time(user_id, now)
 
 
 # ─────────────────────────────────────────────
@@ -239,7 +237,7 @@ async def handle_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not topic:
         topic = "Technology"
 
-    logger.debug("quiz topic=%r difficulty=%r", topic)
+    logger.debug("quiz topic=%r", topic)
 
     # Show typing action while generating
     try:
@@ -252,8 +250,9 @@ async def handle_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prompt = build_quiz_prompt(topic)
 
         # Call AI - use Qwen for quizzes (cheapest), charge tokens for non-admins
-        result = await ai_manager.generate_response(
+        result = await ai_manager.generate_raw(
             prompt=prompt,
+            system_prompt="You are a quiz generator. Respond ONLY with a valid JSON array. No markdown, no explanation, no extra text — just the raw JSON.",
             user_id=user.id,
             is_owner=admin,  # Admins get free quiz generation
             provider='qwen'  # Force cheapest model for quizzes
@@ -266,7 +265,7 @@ async def handle_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Record usage for rate limiting (only for non-admins)
         if not admin:
-            record_quiz_usage(user.id)
+            await record_quiz_usage(user.id)
 
         # Parse quiz
         try:

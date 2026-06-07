@@ -40,6 +40,9 @@ secrets/
 # Logs
 *.log
 
+#data
+data/
+
 # OS
 .DS_Store
 Thumbs.db

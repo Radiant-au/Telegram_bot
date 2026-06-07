@@ -30,7 +30,7 @@ class OpenRouterLLM(BaseLLM):
         """Generate response using OpenRouter"""
         system = system_prompt if system_prompt else SYSTEM_PROMPT
         response = self.client.chat.completions.create(
-            model="google/gemma-4-31b-it",
+            model="google/gemini-2.5-flash-lite",
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt}

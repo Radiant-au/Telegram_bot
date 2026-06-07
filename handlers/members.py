@@ -178,6 +178,7 @@ Commands:
 - /miki <question> - Ask the AI anything
 - /tokens - Check remaining tokens
 - /llmstatus - Show current AI model status
+- /quiz - Generate a quiz
 - /help - Show this help message
 - /knowme - Show your known profile information
 

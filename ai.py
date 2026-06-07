@@ -1,9 +1,7 @@
 """
 Multi-LLM integration module
-Supports Gemini and DeepSeek with easy switching and token-based usage limits
-Integrated with MemoryManager for personalized, token-efficient conversations.
+Supports Gemini, DeepSeek, OpenRouter, and Qwen with easy switching and token-based usage limits.
 """
-import json
 import logging
 from config import (
     GEMINI_API_KEY, DEEPSEEK_API_KEY, OPENROUTER_API_KEY, QWEN_API_KEY,
@@ -13,12 +11,11 @@ from datetime import datetime
 from collections import defaultdict
 from llm import GeminiLLM, DeepSeekLLM, OpenRouterLLM, QwenLLM
 from memory_manager import memory_manager
-from prompts import build_system_prompt
 
 logger = logging.getLogger(__name__)
 
 class AIManager:
-    """Main AI manager supporting multiple LLM providers with memory awareness"""
+    """Main AI manager supporting multiple LLM providers"""
     def __init__(self):
         """Initialize AI manager with all available LLMs"""
         # Initialize providers
@@ -129,27 +126,79 @@ class AIManager:
             return True
         return False
 
-    def record_message(self, user_id: int, role: str, content: str):
-        """Record a message in the user's sliding-window chat history."""
-        memory_manager.add_message(user_id, role, content)
-
-    async def generate_response(self, prompt, user_id, username="", first_name="", is_owner=False, provider=None):
+    async def generate_raw(self, prompt: str, system_prompt: str = None, provider: str = None, user_id: int = 0, is_owner: bool = False):
         """
-        Generate AI response with memory awareness and token checking.
-
-        Fetches user profile, builds optimized context, sends to LLM,
-        and records the conversation in the sliding window.
+        Generate a response bypassing memory context entirely.
+        Use this for structured tasks (quiz, etc.) where the prompt IS the full request.
 
         Args:
-            prompt (str): User's question/prompt
-            user_id (int): User's Telegram ID
-            username (str): User's Telegram username
-            first_name (str): User's Telegram first name (for name-based matching)
-            is_owner (bool): Whether user is owner
-            provider (str, optional): Override default provider for this request
+            prompt (str): The full prompt to send directly to the LLM
+            system_prompt (str, optional): Override system prompt
+            provider (str, optional): Override provider for this request
+            user_id (int): User's Telegram ID (for token tracking)
+            is_owner (bool): Whether user is owner (unlimited tokens)
 
         Returns:
             dict: {'success': bool, 'response': str, 'tokens_left': int, 'provider': str}
+        """
+        if not self.enabled:
+            return {
+                'success': False,
+                'response': "❌ AI features are currently disabled.",
+                'tokens_left': 0,
+                'provider': None
+            }
+
+        use_provider = provider if provider else self.current_provider
+
+        if use_provider not in self.providers or not self.providers[use_provider].enabled:
+            return {
+                'success': False,
+                'response': f"❌ Provider '{use_provider}' is not available.",
+                'tokens_left': self.get_remaining_tokens(user_id, is_owner),
+                'provider': use_provider
+            }
+
+        remaining = self.get_remaining_tokens(user_id, is_owner)
+        if remaining == 0:
+            return {
+                'success': False,
+                'response': "❌ You've used all your daily tokens! Tokens reset at midnight. 🌙",
+                'tokens_left': 0,
+                'provider': use_provider
+            }
+
+        if not self.use_token(user_id, is_owner):
+            return {
+                'success': False,
+                'response': "❌ No tokens available!",
+                'tokens_left': 0,
+                'provider': use_provider
+            }
+
+        try:
+            response_text = await self.providers[use_provider].generate(
+                prompt, system_prompt=system_prompt
+            )
+            return {
+                'success': True,
+                'response': response_text,
+                'tokens_left': self.get_remaining_tokens(user_id, is_owner),
+                'provider': use_provider
+            }
+        except Exception as e:
+            if not is_owner:
+                self.user_tokens[user_id]['tokens'] += 1
+            return {
+                'success': False,
+                'response': f"❌ AI Error ({use_provider}): {str(e)}",
+                'tokens_left': self.get_remaining_tokens(user_id, is_owner),
+                'provider': use_provider
+            }
+
+    async def generate_response(self, prompt, user_id, username="", first_name="", is_owner=False, provider=None):
+        """
+        Generate AI response with token checking and static personality.
         """
         if not self.enabled:
             return {
@@ -181,23 +230,6 @@ class AIManager:
                 'provider': use_provider
             }
 
-        # ─── Memory-aware flow ───────────────────────────────────
-        # 1. Fetch profile (once, low token cost — not in prompt)
-        profile = memory_manager.get_profile(user_id, username, first_name)
-
-        # 2. Record user message in history
-        memory_manager.add_message(user_id, "user", prompt)
-
-        # 3. Build optimized context (profile + sliding window)
-        chat_history = memory_manager.get_history(user_id)
-        user_context = memory_manager.build_context(profile, chat_history)
-
-        # 4. Build dynamic system prompt with memory injection
-        system_prompt = build_system_prompt(profile, user_context)
-
-        # Combine context + user prompt for the LLM
-        full_prompt = f"{user_context}\n\n---\n\nUser: {prompt}"
-
         # Use a token
         if not self.use_token(user_id, is_owner):
             return {
@@ -208,27 +240,12 @@ class AIManager:
             }
 
         try:
-            # Generate response using selected provider with dynamic system prompt
+            # Generate response using selected provider with static Miki personality
+            from prompts import MIKI_PERSONALITY
             response_text = await self.providers[use_provider].generate(
-                full_prompt, system_prompt=system_prompt
+                prompt, system_prompt=MIKI_PERSONALITY
             )
             tokens_left = self.get_remaining_tokens(user_id, is_owner)
-
-            # Record assistant response in history
-            memory_manager.add_message(user_id, "assistant", response_text)
-
-            # Async: extract and save new facts from user message
-            facts = memory_manager.extract_new_facts(prompt)
-            if facts:
-                if profile and profile.get("status") == "known":
-                    # Update existing profile
-                    await memory_manager.async_update_profile(user_id, facts)
-                elif facts.get("name"):
-                    # New user shared their name — create profile
-                    memory_manager.create_profile(
-                        user_id, username, name=facts.get("name", ""),
-                        interests=facts.get("interests", "")
-                    )
 
             return {
                 'success': True,
@@ -251,8 +268,7 @@ class AIManager:
     def handle_do_you_know_me(self, user_id: int, username: str = "", first_name: str = "") -> str:
         """
         Handle the explicit 'do you know me?' scenario.
-
-        Returns a personalized response based on whether the user has a profile.
+        Returns a response based on whether the user has a profile in sheets.
         """
         from prompts import build_identity_response
         profile = memory_manager.get_profile(user_id, username, first_name)

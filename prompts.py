@@ -90,7 +90,7 @@ KNOWN_USER_RESPONSE_BASIC = (
 )
 
 NEW_USER_RESPONSE = (
-    "I don't think we've met properly yet! I'm Miki. What should I call you? 🙂"
+    "https://docs.google.com/forms/d/e/1FAIpQLScrNVqkAruRfppeJ9urQ5uNg2toaGXbiq4tThaALbT20YvEQQ/viewform?usp=dialog"
 )
 
 # Fact extraction prompt (used post-response to ask LLM to identify new facts)
