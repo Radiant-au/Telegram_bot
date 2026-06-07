@@ -28,6 +28,9 @@ QWEN_API_KEY = os.getenv('QWEN_API_KEY')
 # Default LLM provider ('gemini', 'deepseek', 'openrouter' or 'qwen')
 DEFAULT_LLM = os.getenv('DEFAULT_LLM', 'gemini').lower()
 
+# Daily AI token limit for non-admin users
+DAILY_TOKEN_LIMIT = int(os.getenv('DAILY_TOKEN_LIMIT', 10))
+
 # AI is enabled if at least one API key is present
 AI_ENABLED = bool(GEMINI_API_KEY or DEEPSEEK_API_KEY or OPENROUTER_API_KEY or QWEN_API_KEY)
 
@@ -103,6 +106,9 @@ def validate_config():
     
     if not AI_ENABLED:
         errors.append("⚠️  No AI API keys set (AI features disabled)")
+
+    if DAILY_TOKEN_LIMIT <= 0:
+        errors.append("⚠️  DAILY_TOKEN_LIMIT must be greater than 0")
     
     if DEFAULT_LLM not in ['gemini', 'deepseek', 'openrouter', 'qwen']:
         errors.append(f"⚠️  Invalid DEFAULT_LLM: {DEFAULT_LLM} (must be 'gemini', 'deepseek', 'openrouter' or 'qwen')")
@@ -128,6 +134,7 @@ def print_config():
     print(f"✅ Quiz Topic: {QUIZ_TOPIC_ID}")
     print(f"✅ MEMBER Topic: {MEMBER_TOPIC_ID}")
     print(f"✅ AI Enabled: {AI_ENABLED}")
+    print(f"✅ Daily Token Limit: {DAILY_TOKEN_LIMIT}")
     if AI_ENABLED:
         if GEMINI_API_KEY:
             print(f"✅ Gemini API Key: {'*' * 20}{GEMINI_API_KEY[-10:]}")

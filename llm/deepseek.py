@@ -26,12 +26,13 @@ class DeepSeekLLM(BaseLLM):
         except Exception as e:
             logger.error("Failed to initialize DeepSeek: %s", e, exc_info=True)
     
-    async def generate(self, prompt):
+    async def generate(self, prompt, system_prompt=None):
         """Generate response using DeepSeek"""
+        system = system_prompt if system_prompt else SYSTEM_PROMPT
         response = self.client.chat.completions.create(
             model="deepseek-v4-flash",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.6,

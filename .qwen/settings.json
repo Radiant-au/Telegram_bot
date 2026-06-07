@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv *)",
+      "Bash(/home/radiant/desktop/projects/telegram_bot/.venv/bin/pip *)",
+      "Bash(source *)",
+      "Bash(python *)"
+    ]
+  },
+  "$version": 4
+}

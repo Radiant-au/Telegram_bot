@@ -179,12 +179,10 @@ Commands:
 - /tokens - Check remaining tokens
 - /llmstatus - Show current AI model status
 - /help - Show this help message
+- /knowme - Show your known profile information
 
 Usage Examples:
 - /miki What is machine learning?
-- /miki Explain blockchain simply
-- /miki Write a haiku about technology
-- /miki Help me debug this code
 
 Admin Commands:
 - @all - Mention all users in the group
@@ -192,7 +190,7 @@ Admin Commands:
 - /switchllm <provider> - Switch AI provider (gemini/deepseek/openrouter/qwen)
 
 Token System:
-{"👑 You have unlimited tokens (Admin)" if is_admin else "🎟️ You get 3 tokens per day"}
+{"👑 You have unlimited tokens (Admin)" if is_admin else "🎟️ You get 10 tokens per day"}
 🔄 Tokens reset at midnight
 💡 Use tokens wisely!
 

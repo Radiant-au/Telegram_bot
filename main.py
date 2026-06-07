@@ -57,7 +57,7 @@ from handlers.admin import (
 )
 from handlers.members import on_new_member, get_user_info, handle_help
 from handlers.ai_handler import (
-    handle_ai_command, handle_ai_tokens,
+    handle_ai_command, handle_ai_tokens, handle_know_me,
     handle_switch_llm, handle_llm_status
 )
 from handlers.quiz_handler import register_quiz_handlers
@@ -87,7 +87,8 @@ def create_application():
     # AI handlers (if enabled)
     if AI_ENABLED:
         application.add_handler(CommandHandler('miki', handle_ai_command))
-        application.add_handler(CommandHandler('tokens', handle_ai_tokens)) 
+        application.add_handler(CommandHandler('tokens', handle_ai_tokens))
+        application.add_handler(CommandHandler('knowme', handle_know_me))
         application.add_handler(CommandHandler('switchllm', handle_switch_llm))
         application.add_handler(CommandHandler('llmstatus', handle_llm_status))
     

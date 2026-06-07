@@ -17,7 +17,7 @@ A Telegram bot for managing university club groups with AI chat, member lookup, 
 - `/tokens` - Check remaining daily AI tokens
 - `/switchllm` - Switch between configured LLM providers
 - `/llmstatus` - Show active and available LLM providers
-- Token system: 3 tokens per day for regular users
+- Token system: 10 tokens per day for regular users
 - Unlimited tokens for admins
 - Daily token reset at midnight
 - Supported providers: Gemini, DeepSeek, OpenRouter, and Qwen
@@ -285,7 +285,7 @@ The workspace is configured to use `.venv/bin/python`. If the debug console show
 ## 📝 Token System
 
 ### Regular Users
-- 3 tokens per day
+- 10 tokens per day
 - Tokens reset at midnight
 - One token per `/miki` command
 

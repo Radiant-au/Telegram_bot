@@ -33,10 +33,16 @@ class GeminiLLM(BaseLLM):
         except Exception as e:
             logger.error("Failed to initialize Gemini: %s", e, exc_info=True)
     
-    async def generate(self, prompt):
+    async def generate(self, prompt, system_prompt=None):
         """Generate response using Gemini"""
-        # Run in executor or wrap if sync, but keep current implementation intact
-        response = self.model.generate_content(
+        model = self.model
+        if system_prompt and system_prompt != SYSTEM_PROMPT:
+            # Create a temporary model with custom system instruction
+            model = genai.GenerativeModel(
+                model_name='gemini-2.5-flash',
+                system_instruction=system_prompt
+            )
+        response = model.generate_content(
             prompt,
             generation_config=self.generation_config
         )

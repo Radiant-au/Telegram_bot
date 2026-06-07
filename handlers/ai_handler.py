@@ -1,11 +1,11 @@
 """
 AI command handlers for Telegram bot
-Handle /miki, /tokens, and provider switching commands
+Handle /miki, /tokens, /knowme, and provider switching commands
 """
 from telegram import Update
 from telegram.ext import ContextTypes
 from ai import ai_manager
-from config import BOT_OWNER_ID
+from config import BOT_OWNER_ID, DAILY_TOKEN_LIMIT
 
 async def handle_ai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -13,8 +13,10 @@ async def handle_ai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Usage: /miki <question>
     """
     user = update.effective_user
+    username = user.username or ""
+    first_name = user.first_name or ""
     is_owner = user.id == BOT_OWNER_ID or await is_admin(update, context)
-    
+
     # Check if command has a question
     if not context.args:
         await update.message.reply_text(
@@ -23,20 +25,22 @@ async def handle_ai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"You have {ai_manager.get_remaining_tokens(user.id, is_owner)} tokens left today."
         )
         return
-    
+
     # Get the question
     question = ' '.join(context.args)
-    
+
     # Show typing indicator
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    
-    # Generate response
+
+    # Generate response (memory-aware)
     result = await ai_manager.generate_response(
         prompt=question,
         user_id=user.id,
+        username=username,
+        first_name=first_name,
         is_owner=is_owner
     )
-    
+
     # Format response with provider info
     if result['success']:
         provider_emojis = {
@@ -47,14 +51,14 @@ async def handle_ai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         provider_emoji = provider_emojis.get(result['provider'], '🤖')
         response = f"{result['response']}\n\n"
-        
+
         if not is_owner:
-            response += f"_Tokens left: {result['tokens_left']}/3_ | {provider_emoji} {result['provider'].title()}"
+            response += f"_Tokens left: {result['tokens_left']}/{DAILY_TOKEN_LIMIT}_ | {provider_emoji} {result['provider'].title()}"
         else:
             response += f"_Admin: ∞ tokens_ | {provider_emoji} {result['provider'].title()}"
     else:
         response = result['response']
-    
+
     try:
         await update.message.reply_text(response, parse_mode='Markdown')
     except Exception as e:
@@ -79,7 +83,7 @@ async def handle_ai_tokens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         message = (
             f"🎫 *Your AI Tokens*\n"
-            f"Remaining: {remaining}/3\n"
+            f"Remaining: {remaining}/{DAILY_TOKEN_LIMIT}\n"
             f"Resets: Daily at midnight\n\n"
             f"Current provider: {ai_manager.get_current_provider().title()}"
         )
@@ -135,24 +139,36 @@ async def handle_llm_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     current = ai_manager.get_current_provider()
     available = ai_manager.get_available_providers()
-    
+
     provider_emojis = {
         'gemini': '🔮',
         'deepseek': '🧠',
         'openrouter': '🌐',
         'qwen': '🐼'
     }
-    
+
     message = "🤖 *AI Configuration*\n\n"
     message += f"Current: {provider_emojis.get(current, '🤖')} {current.title()}\n\n"
     message += "*Available Providers:*\n"
-    
+
     for provider in available:
         emoji = provider_emojis.get(provider, '🤖')
         status = "✅" if provider == current else "⚪"
         message += f"{status} {emoji} {provider.title()}\n"
-    
+
     await update.message.reply_text(message, parse_mode='Markdown')
+
+async def handle_know_me(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle /knowme command - Ask Miki if she knows you.
+    Demonstrates the memory/identity feature.
+    """
+    user = update.effective_user
+    username = user.username or ""
+    first_name = user.first_name or ""
+
+    response = ai_manager.handle_do_you_know_me(user.id, username, first_name)
+    await update.message.reply_text(response)
 
 async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Check if user is admin in the chat"""

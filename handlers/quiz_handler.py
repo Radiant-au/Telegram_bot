@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
 from ai import ai_manager
-from config import BOT_OWNER_ID, GROUP_CHAT_ID, QUIZ_TOPIC_ID
+from config import BOT_OWNER_ID, GROUP_CHAT_ID, QUIZ_TOPIC_ID, DAILY_TOKEN_LIMIT
 
 # ─────────────────────────────────────────────
 # Rate limiting for members
@@ -323,7 +323,7 @@ async def handle_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if admin:
             status_text += f"🎫 *Admin:* ∞ tokens"
         else:
-            status_text += f"🎫 *Tokens Left:* {tokens_left}/3"
+            status_text += f"🎫 *Tokens Left:* {tokens_left}/{DAILY_TOKEN_LIMIT}"
 
         logger.info("Quiz sent successfully: topic=%r provider=%s tokens_left=%s",
                     topic, prov, tokens_left)

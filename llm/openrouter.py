@@ -26,12 +26,13 @@ class OpenRouterLLM(BaseLLM):
         except Exception as e:
             logger.error("Failed to initialize OpenRouter: %s", e, exc_info=True)
     
-    async def generate(self, prompt):
+    async def generate(self, prompt, system_prompt=None):
         """Generate response using OpenRouter"""
+        system = system_prompt if system_prompt else SYSTEM_PROMPT
         response = self.client.chat.completions.create(
             model="google/gemma-4-31b-it",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.6,
