@@ -90,7 +90,10 @@ KNOWN_USER_RESPONSE_BASIC = (
 )
 
 NEW_USER_RESPONSE = (
-    "https://docs.google.com/forms/d/e/1FAIpQLScrNVqkAruRfppeJ9urQ5uNg2toaGXbiq4tThaALbT20YvEQQ/viewform?usp=dialog"
+    "Hey 👋 I don’t think we’ve met yet!\n\n"
+    "To get started, please take a quick moment to register here:\n"
+    "https://docs.google.com/forms/d/e/1FAIpQLScrNVqkAruRfppeJ9urQ5uNg2toaGXbiq4tThaALbT20YvEQQ/viewform?usp=dialog\n\n"
+    "Once you're done, I’ll be able to remember you next time 😄"
 )
 
 # Fact extraction prompt (used post-response to ask LLM to identify new facts)
