@@ -8,6 +8,56 @@ from ai import ai_manager
 from config import BOT_OWNER_ID, DAILY_TOKEN_LIMIT
 
 async def handle_ai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    username = user.username or ""
+    first_name = user.first_name or ""
+    is_owner = user.id == BOT_OWNER_ID or await is_admin(update, context)
+
+    # No question — Miki responds in character instead of showing a usage error
+    if not context.args:
+        remaining = ai_manager.get_remaining_tokens(user.id, is_owner)
+        greetings = [
+            f"yeah? you called me but said nothing 💀 what do you need",
+            f"hello?? don't just summon me and go quiet lol. ask me something",
+            f"i'm here, i'm here. what's the question?",
+            f"you rang? 👀 ask away, i don't bite (much)",
+        ]
+        import random
+        msg = random.choice(greetings)
+        if not is_owner:
+            msg += f"\n_(you've got {remaining} questions left today btw)_"
+        await update.message.reply_text(msg, parse_mode='Markdown')
+        return
+
+    question = ' '.join(context.args)
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+
+    result = await ai_manager.generate_response(
+        prompt=question,
+        user_id=user.id,
+        username=username,
+        first_name=first_name,
+        is_owner=is_owner
+    )
+
+    if result['success']:
+        response = result['response']
+
+        # Subtle token reminder only when running low — not every single message
+        if not is_owner:
+            left = result['tokens_left']
+            if left <= 3:
+                response += f"\n\n_(psst, you only have {left} questions left today)_"
+            elif left <= 0:
+                response += f"\n\n_(that was your last one for today lol. come back tomorrow)_"
+    else:
+        response = result['response']
+
+    try:
+        await update.message.reply_text(response, parse_mode='Markdown')
+    except Exception as e:
+        print(f"⚠️ Markdown parse failed: {e}")
+        await update.message.reply_text(response)
     """
     Handle /miki command - Ask AI anything
     Usage: /miki <question>
