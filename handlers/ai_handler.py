@@ -56,62 +56,6 @@ async def handle_ai_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await update.message.reply_text(response, parse_mode='Markdown')
     except Exception as e:
-        print(f"⚠️ Markdown parse failed: {e}")
-        await update.message.reply_text(response)
-    """
-    Handle /miki command - Ask AI anything
-    Usage: /miki <question>
-    """
-    user = update.effective_user
-    username = user.username or ""
-    first_name = user.first_name or ""
-    is_owner = user.id == BOT_OWNER_ID or await is_admin(update, context)
-
-    # Check if command has a question
-    if not context.args:
-        await update.message.reply_text(
-            "💬 Usage: /miki <your question>\n"
-            "Example: /miki What is Python?\n\n"
-            f"You have {ai_manager.get_remaining_tokens(user.id, is_owner)} tokens left today."
-        )
-        return
-
-    # Get the question
-    question = ' '.join(context.args)
-
-    # Show typing indicator
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-
-    # Generate response (memory-aware)
-    result = await ai_manager.generate_response(
-        prompt=question,
-        user_id=user.id,
-        username=username,
-        first_name=first_name,
-        is_owner=is_owner
-    )
-
-    # Format response with provider info
-    if result['success']:
-        provider_emojis = {
-            'gemini': '🔮',
-            'deepseek': '🧠',
-            'openrouter': '🌐',
-            'qwen': '🐼'
-        }
-        provider_emoji = provider_emojis.get(result['provider'], '🤖')
-        response = f"{result['response']}\n\n"
-
-        if not is_owner:
-            response += f"_Tokens left: {result['tokens_left']}/{DAILY_TOKEN_LIMIT}_ | {provider_emoji} {result['provider'].title()}"
-        else:
-            response += f"_Admin: ∞ tokens_ | {provider_emoji} {result['provider'].title()}"
-    else:
-        response = result['response']
-
-    try:
-        await update.message.reply_text(response, parse_mode='Markdown')
-    except Exception as e:
         print(f"⚠️ Telegram Markdown parsing failed: {e}. Falling back to plain text.")
         await update.message.reply_text(response)
 
